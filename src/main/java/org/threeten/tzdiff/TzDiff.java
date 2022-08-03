@@ -18,9 +18,11 @@ package org.threeten.tzdiff;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.NavigableMap;
+import java.util.SortedSet;
 import java.util.TreeSet;
 
 import org.threeten.bp.Instant;
+import org.threeten.bp.ZoneId;
 import org.threeten.bp.zone.ZoneOffsetTransition;
 import org.threeten.bp.zone.ZoneOffsetTransitionRule;
 import org.threeten.bp.zone.ZoneRules;
@@ -32,28 +34,54 @@ import org.threeten.bp.zone.ZoneRulesProvider;
 public class TzDiff {
 
     public static void main(String[] args) throws Exception {
-        String outputVersion = "2014f-proposed";
+        String outputVersion = "2022agtz";
         TreeSet<String> ids = new TreeSet<>(ZoneRulesProvider.getAvailableZoneIds());
         for (String id : ids) {
             String name = id.replace('/', '-') + ".txt";
-            File file = new File("/dev/threeten/tzdiff/data", name);
+            File file = new File("/dev-oss/tzdiff/data", name);
             NavigableMap<String, ZoneRules> versions = ZoneRulesProvider.getVersions(id);
             ZoneRules rules = versions.get(outputVersion);
             if (rules != null) {
+                System.out.println(file);
                 try (FileWriter out = new FileWriter(file)) {
-                    out.write("LMT: " + rules.getOffset(Instant.MIN));
-                    out.write("\r\n");
-                    for (ZoneOffsetTransition trans : rules.getTransitions()) {
-                        out.write(trans.toString());
+                    SortedSet<String> sameAs = findSame(id, rules, ids);
+                    if (sameAs.isEmpty()) {
+                        out.write("LMT: " + rules.getOffset(Instant.MIN));
                         out.write("\r\n");
-                    }
-                    for (ZoneOffsetTransitionRule trans : rules.getTransitionRules()) {
-                        out.write(trans.toString());
-                        out.write("\r\n");
+                        for (ZoneOffsetTransition trans : rules.getTransitions()) {
+                            out.write(trans.toString());
+                            out.write("\r\n");
+                        }
+                        for (ZoneOffsetTransitionRule trans : rules.getTransitionRules()) {
+                            out.write(trans.toString());
+                            out.write("\r\n");
+                        }
+                    } else {
+                        out.write("Zone is same as:\r\n");
+                        for (String same : sameAs) {
+                            out.write(same + "\r\n");
+                        }
                     }
                 }
             }
         }
+    }
+
+    private static SortedSet<String> findSame(String id, ZoneRules rules, TreeSet<String> otherIds) {
+        SortedSet<String> sameAs = new TreeSet<>();
+        if (id.contains("/")) {
+            return sameAs;
+        }
+        for (String otherId : otherIds) {
+            if (otherId.equals(id)) {
+                continue;
+            }
+            ZoneRules otherRules = ZoneId.of(otherId).getRules();
+            if (otherRules.equals(rules)) {
+                sameAs.add(otherId);
+            }
+        }
+        return sameAs;
     }
 
 }
