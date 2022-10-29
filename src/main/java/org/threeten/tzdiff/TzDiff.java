@@ -17,12 +17,14 @@ package org.threeten.tzdiff;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
 import org.threeten.bp.Instant;
-import org.threeten.bp.ZoneId;
 import org.threeten.bp.zone.ZoneOffsetTransition;
 import org.threeten.bp.zone.ZoneOffsetTransitionRule;
 import org.threeten.bp.zone.ZoneRules;
@@ -34,9 +36,18 @@ import org.threeten.bp.zone.ZoneRulesProvider;
 public class TzDiff {
 
     public static void main(String[] args) throws Exception {
-        String outputVersion = "2022agtz";
-        TreeSet<String> ids = new TreeSet<>(ZoneRulesProvider.getAvailableZoneIds());
+        // also change the jar file in the Eclipse build properties
+        // ideally that is the "all" jar file thatr is output from threetenbp
+        // note that you need to use the rearguard file in threetenbp to get the expected outcome
+        String outputVersion = "2022fgtz-rearguard";
+        List<String> ids = new ArrayList<>(ZoneRulesProvider.getAvailableZoneIds());
+        ids.sort(Comparator.naturalOrder());
+        ids.remove("Eire");
+        ids.add("Eire");
         for (String id : ids) {
+            if (id.startsWith("Europe/K")) {
+                System.out.println("");
+            }
             String name = id.replace('/', '-') + ".txt";
             File file = new File("/dev-oss/tzdiff/data", name);
             NavigableMap<String, ZoneRules> versions = ZoneRulesProvider.getVersions(id);
@@ -44,7 +55,7 @@ public class TzDiff {
             if (rules != null) {
                 System.out.println(file);
                 try (FileWriter out = new FileWriter(file)) {
-                    SortedSet<String> sameAs = findSame(id, rules, ids);
+                    SortedSet<String> sameAs = findSame(id, rules, ids, outputVersion);
                     if (sameAs.isEmpty()) {
                         out.write("LMT: " + rules.getOffset(Instant.MIN));
                         out.write("\r\n");
@@ -67,7 +78,7 @@ public class TzDiff {
         }
     }
 
-    private static SortedSet<String> findSame(String id, ZoneRules rules, TreeSet<String> otherIds) {
+    private static SortedSet<String> findSame(String id, ZoneRules rules, List<String> otherIds, String version) {
         SortedSet<String> sameAs = new TreeSet<>();
         if (id.contains("/")) {
             return sameAs;
@@ -76,8 +87,9 @@ public class TzDiff {
             if (otherId.equals(id)) {
                 continue;
             }
-            ZoneRules otherRules = ZoneId.of(otherId).getRules();
-            if (otherRules.equals(rules)) {
+            NavigableMap<String, ZoneRules> versions = ZoneRulesProvider.getVersions(otherId);
+            ZoneRules otherRules = versions.get(version);
+            if (otherRules != null && otherRules.equals(rules)) {
                 sameAs.add(otherId);
             }
         }
